@@ -112,7 +112,10 @@ export default function LeaderboardTable({
       </div>
 
       {/* Rows */}
-      <div className="flex flex-col overflow-auto flex-1">
+      <div 
+        className="flex flex-col overflow-y-auto overflow-x-hidden flex-1 overscroll-contain pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+        onWheel={(e) => e.stopPropagation()}
+      >
         {sorted.map((pref, idx) => {
           const isSelected = selectedPrefecture === pref.prefecture_en;
           const isNeg = pref.adjustedChange < 0;

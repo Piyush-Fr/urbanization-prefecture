@@ -36,7 +36,7 @@ export default function SimulationControls({ modifiers, setModifiers, spatialDat
       </p>
 
       {/* National Impact Summary */}
-      {nationalImpact && !isBaseline && (
+      {nationalImpact && (
         <div className="mb-6 p-3.5 bg-white/5 border border-white/10 rounded-xl">
           <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Simulated National Avg.</div>
           <div className="flex items-end justify-between">
@@ -47,12 +47,12 @@ export default function SimulationControls({ modifiers, setModifiers, spatialDat
             <div className="text-gray-600">→</div>
             <div>
               <div className="text-xs text-gray-500">Adjusted</div>
-              <div className={`text-sm font-semibold ${parseFloat(nationalImpact.delta) >= 0 ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
+              <div className={`text-sm font-semibold ${parseFloat(nationalImpact.delta) > 0 ? 'text-[#4caf50]' : parseFloat(nationalImpact.delta) < 0 ? 'text-[#e27676]' : 'text-gray-400'}`}>
                 {nationalImpact.adjusted}%
               </div>
             </div>
-            <div className={`text-xs px-2 py-1 rounded font-medium ${parseFloat(nationalImpact.delta) >= 0 ? 'bg-[#4caf50]/10 text-[#4caf50]' : 'bg-[#e27676]/10 text-[#e27676]'}`}>
-              {parseFloat(nationalImpact.delta) >= 0 ? '+' : ''}{nationalImpact.delta}%
+            <div className={`text-xs px-2 py-1 rounded font-medium ${parseFloat(nationalImpact.delta) > 0 ? 'bg-[#4caf50]/10 text-[#4caf50]' : parseFloat(nationalImpact.delta) < 0 ? 'bg-[#e27676]/10 text-[#e27676]' : 'bg-white/5 text-gray-400'}`}>
+              {parseFloat(nationalImpact.delta) > 0 ? '+' : ''}{nationalImpact.delta}%
             </div>
           </div>
         </div>
@@ -114,6 +114,8 @@ export default function SimulationControls({ modifiers, setModifiers, spatialDat
   );
 }
 
+import { LiquidGlassSlider } from '../liquid-glass/LiquidGlassSlider';
+
 function SliderRow({
   icon, label, value, min, max, step, displayVal, accent, lowLabel, highLabel, onChange,
 }: {
@@ -138,12 +140,17 @@ function SliderRow({
           {parseFloat(displayVal) > 0 ? '+' : ''}{displayVal}
         </span>
       </div>
-      <input
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={e => onChange(parseFloat(e.target.value))}
-        className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-        style={{ accentColor: color }}
-      />
+      <div className="py-2">
+        <LiquidGlassSlider
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={onChange}
+          showValue={false}
+          accentColor={color}
+        />
+      </div>
       <div className="flex justify-between text-[9px] text-gray-600 uppercase tracking-wider">
         <span>{lowLabel}</span>
         <span>{highLabel}</span>

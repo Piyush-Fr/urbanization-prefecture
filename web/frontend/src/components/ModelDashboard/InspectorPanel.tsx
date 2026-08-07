@@ -27,15 +27,15 @@ export default function InspectorPanel({
   onClose,
   onCompare,
 }: InspectorPanelProps) {
-  const { prefData, shapData } = useMemo(() => {
+  const { prefData, shapData, maxAbs } = useMemo(() => {
     if (!prefecture || !spatialData.length || !featureImpacts.length) {
-      return { prefData: null, shapData: [] };
+      return { prefData: null, shapData: [], maxAbs: 1 };
     }
 
     const pref = spatialData.find(
       d => d.prefecture_en?.toLowerCase() === prefecture.toLowerCase()
     );
-    if (!pref) return { prefData: null, shapData: [] };
+    if (!pref) return { prefData: null, shapData: [], maxAbs: 1 };
 
     // Calculate means and stddevs across all prefectures
     const stats: Record<string, { mean: number; std: number }> = {};
@@ -58,7 +58,9 @@ export default function InspectorPanel({
       return { name: impact.feature, value: localImpact, raw: pref[featureKeyDef.key] };
     }).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 
-    return { prefData: pref, shapData: shap };
+    const maxAbs = shap.length > 0 ? Math.max(...shap.map(d => Math.abs(d.value))) : 1;
+
+    return { prefData: pref, shapData: shap, maxAbs };
   }, [prefecture, spatialData, featureImpacts]);
 
   if (!prefecture || !prefData) return null;
@@ -69,7 +71,10 @@ export default function InspectorPanel({
   const region = prefInfo?.region || '';
 
   return (
-    <div className="h-full flex flex-col text-white overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+    <div 
+      className="h-full flex flex-col text-white overflow-y-auto overflow-x-hidden overscroll-contain pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+      onWheel={(e) => e.stopPropagation()}
+    >
       
       {/* Header */}
       <div className="sticky top-0 bg-black/90 backdrop-blur-md px-6 pt-6 pb-4 border-b border-white/10 z-10">
@@ -134,7 +139,7 @@ export default function InspectorPanel({
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={shapData} layout="vertical" margin={{ top: 0, right: 24, left: 10, bottom: 0 }}>
-                <XAxis type="number" hide domain={['auto', 'auto']} />
+                <XAxis type="number" hide domain={[-maxAbs, maxAbs]} />
                 <YAxis
                   dataKey="name"
                   type="category"

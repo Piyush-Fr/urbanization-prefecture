@@ -2,12 +2,13 @@ from fastapi import FastAPI, APIRouter
 import pandas as pd
 import json
 import os
+from pathlib import Path
 
 router = APIRouter(prefix="/api")
 
 # Paths
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-GEOJSON_PATH = os.path.join(BASE_DIR, 'data', 'raw', 'geospatial', 'prefectures.geojson')
+BASE_DIR = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+GEOJSON_PATH = BASE_DIR / "data" / "raw" / "geospatial" / "prefectures_simplified.geojson"
 PROJECTIONS_PATH = os.path.join(BASE_DIR, 'data', 'processed', 'prophet_projections_2035.csv')
 SPATIAL_PANEL_PATH = os.path.join(BASE_DIR, 'data', 'processed', 'spatial_panel.csv')
 

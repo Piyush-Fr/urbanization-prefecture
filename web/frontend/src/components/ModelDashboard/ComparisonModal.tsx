@@ -17,7 +17,7 @@ const FEATURE_KEYS = [
   { key: 'gdp_usd_ppp_2014',    id: 'GDP (USD PPP)',        log: false, unit: '$',    lowerIsBetter: false },
   { key: 'population_2020',     id: 'Log Population 2020',  log: true,  unit: '',     lowerIsBetter: false },
   { key: 'vacancy_rate_pct',    id: 'Vacancy Rate',         log: false, unit: '%',    lowerIsBetter: true },
-  { key: 'dist_to_tokyo_km',    id: 'Dist to Tokyo',        log: false, unit: 'km',   lowerIsBetter: false },
+  { key: 'dist_to_tokyo_km',    id: 'Dist to Tokyo',        log: false, unit: 'km',   lowerIsBetter: true },
 ];
 
 function getShap(pref: any, spatialData: any[], featureImpacts: any[]) {
@@ -52,6 +52,11 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
   const shapA = useMemo(() => prefA ? getShap(prefA, spatialData, featureImpacts) : [], [prefA, spatialData, featureImpacts]);
   const shapB = useMemo(() => prefB ? getShap(prefB, spatialData, featureImpacts) : [], [prefB, spatialData, featureImpacts]);
 
+  const maxAbs = useMemo(() => {
+    const allVals = [...shapA, ...shapB].map(d => Math.abs(d.value));
+    return allVals.length > 0 ? Math.max(...allVals) : 1;
+  }, [shapA, shapB]);
+
   const infoA = getPrefectureInfo(prefectureA);
   const infoB = getPrefectureInfo(prefBName);
 
@@ -64,7 +69,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
     { label: 'GDP (PPP)', valA: `$${Math.round(prefA.gdp_usd_ppp_2014 / 1000)}k`, valB: `$${Math.round(prefB.gdp_usd_ppp_2014 / 1000)}k`, numA: prefA.gdp_usd_ppp_2014, numB: prefB.gdp_usd_ppp_2014, lowerIsBetter: false },
     { label: 'Vacancy Rate', valA: `${prefA.vacancy_rate_pct?.toFixed(1) ?? 'N/A'}%`, valB: `${prefB.vacancy_rate_pct?.toFixed(1) ?? 'N/A'}%`, numA: prefA.vacancy_rate_pct ?? 0, numB: prefB.vacancy_rate_pct ?? 0, lowerIsBetter: true },
     { label: 'Population 2024', valA: prefA.population_2024.toLocaleString(), valB: prefB.population_2024.toLocaleString(), numA: prefA.population_2024, numB: prefB.population_2024, lowerIsBetter: false },
-    { label: 'Dist. to Tokyo', valA: `${Math.round(prefA.dist_to_tokyo_km ?? 0)} km`, valB: `${Math.round(prefB.dist_to_tokyo_km ?? 0)} km`, numA: prefA.dist_to_tokyo_km ?? 0, numB: prefB.dist_to_tokyo_km ?? 0, lowerIsBetter: false },
+    { label: 'Dist. to Tokyo', valA: `${Math.round(prefA.dist_to_tokyo_km ?? 0)} km`, valB: `${Math.round(prefB.dist_to_tokyo_km ?? 0)} km`, numA: prefA.dist_to_tokyo_km ?? 0, numB: prefB.dist_to_tokyo_km ?? 0, lowerIsBetter: true },
   ];
 
   function winner(numA: number, numB: number, lowerIsBetter: boolean): 'A' | 'B' | 'tie' {
@@ -75,7 +80,10 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="bg-[#0d0d0d] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div 
+        className="bg-[#0d0d0d] border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden overscroll-contain shadow-2xl [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+        onWheel={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
         <div className="sticky top-0 bg-[#0d0d0d]/95 backdrop-blur-md border-b border-white/10 px-8 py-5 flex items-center justify-between z-10">
@@ -119,7 +127,10 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
 
               {/* Dropdown */}
               {dropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-[#111] border border-white/20 rounded-xl z-20 max-h-60 overflow-y-auto shadow-2xl">
+                <div 
+                  className="absolute top-full left-0 right-0 mt-2 bg-[#111] border border-white/20 rounded-xl z-20 max-h-60 overflow-y-auto overflow-x-hidden overscroll-contain shadow-2xl [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+                  onWheel={(e) => e.stopPropagation()}
+                >
                   {PREFECTURE_DATA.filter(p => p.en !== prefectureA).map(p => (
                     <button
                       key={p.en}
@@ -167,7 +178,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
                 <div className="h-[220px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={side.data} layout="vertical" margin={{ top: 0, right: 16, left: 10, bottom: 0 }}>
-                      <XAxis type="number" hide domain={['auto', 'auto']} />
+                      <XAxis type="number" hide domain={[-maxAbs, maxAbs]} />
                       <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 9 }} width={120} />
                       <Tooltip
                         cursor={{ fill: 'rgba(255,255,255,0.04)' }}

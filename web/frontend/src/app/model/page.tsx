@@ -161,8 +161,11 @@ export default function ModelDashboard() {
         </div>
 
         {/* Left Sidebar */}
-        <div className="relative w-72 h-full bg-black/70 backdrop-blur-xl border-r border-white/10 z-10 flex flex-col flex-shrink-0">
-          <div className="flex-1 overflow-y-auto p-5">
+        <div 
+          className="relative w-72 h-full bg-black/70 backdrop-blur-xl border-r border-white/10 z-10 flex flex-col flex-shrink-0"
+          onWheel={(e) => e.stopPropagation()}
+        >
+          <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
             <SimulationControls
               modifiers={simulationModifiers}
               setModifiers={setSimulationModifiers}
@@ -185,7 +188,10 @@ export default function ModelDashboard() {
         </div>
 
         {/* Right Sidebar: Inspector */}
-        <div className={`absolute top-0 right-0 h-full w-[380px] bg-black/80 backdrop-blur-2xl border-l border-white/10 z-20 transform transition-transform duration-500 ease-out flex flex-col ${selectedPrefecture ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div 
+          className={`absolute top-0 right-0 h-full w-[380px] bg-black/80 backdrop-blur-2xl border-l border-white/10 z-20 transform transition-transform duration-500 ease-out flex flex-col ${selectedPrefecture ? 'translate-x-0' : 'translate-x-full'}`}
+          onWheel={(e) => e.stopPropagation()}
+        >
           <InspectorPanel
             prefecture={selectedPrefecture}
             spatialData={spatialData}
@@ -195,12 +201,12 @@ export default function ModelDashboard() {
           />
         </div>
 
-        {/* Bottom Leaderboard Drawer */}
         <div
           className={`absolute bottom-0 left-72 right-0 bg-black/85 backdrop-blur-2xl border-t border-white/10 z-10 transition-all duration-300 flex flex-col ${
             selectedPrefecture ? 'right-[380px]' : 'right-0'
           }`}
           style={{ height: leaderboardOpen ? '320px' : '40px' }}
+          onWheel={(e) => e.stopPropagation()}
         >
           {/* Pull handle */}
           <button
