@@ -32,10 +32,7 @@ export default function LeaderboardTable({
       return { ...d, adjustedChange, jp: info?.jp || '', region: info?.region || '' };
     });
 
-    const sortedVals = [...mapped].map(d => d.adjustedChange).sort((a, b) => a - b);
-    const dynamicMedian = sortedVals[Math.floor(sortedVals.length / 2)] ?? 0;
-
-    return mapped.map(d => ({ ...d, isAboveMedian: d.adjustedChange >= dynamicMedian }));
+    return mapped.map(d => ({ ...d, isBelowBaseline: d.adjustedChange < (d.national_median || -3.06) }));
   }, [spatialData, simulationModifiers]);
 
   const filtered = useMemo(() => {
@@ -123,7 +120,7 @@ export default function LeaderboardTable({
       >
         {sorted.map((pref, idx) => {
           const isSelected = selectedPrefecture === pref.prefecture_en;
-          const isBelowMedian = !pref.isAboveMedian;
+          const isBelowBaseline = pref.isBelowBaseline;
           return (
             <div
               key={pref.prefecture_en}
@@ -138,7 +135,7 @@ export default function LeaderboardTable({
               <div className="col-span-1 flex items-center">
                 <span
                   className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                    isBelowMedian ? 'bg-[#d73027]/20 text-[#d73027]' : 'bg-[#4caf50]/20 text-[#4caf50]'
+                    isBelowBaseline ? 'bg-[#d73027]/20 text-[#d73027]' : 'bg-[#4caf50]/20 text-[#4caf50]'
                   }`}
                 >
                   {idx + 1}
@@ -152,7 +149,7 @@ export default function LeaderboardTable({
               </div>
 
               {/* Change */}
-              <div className={`col-span-2 text-right flex items-center justify-end text-xs font-semibold ${isBelowMedian ? 'text-[#e27676]' : 'text-[#4caf50]'}`}>
+              <div className={`col-span-2 text-right flex items-center justify-end text-xs font-semibold ${isBelowBaseline ? 'text-[#e27676]' : 'text-[#4caf50]'}`}>
                 {pref.adjustedChange > 0 ? '+' : ''}{pref.adjustedChange.toFixed(2)}%
               </div>
 

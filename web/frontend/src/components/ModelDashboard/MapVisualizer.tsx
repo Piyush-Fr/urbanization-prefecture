@@ -109,9 +109,9 @@ export default function MapVisualizer({
   const cleanName = (name: string) => name ? name.replace(/\s*(Fu|To|Ken|Do|Prefecture)$/i, '').trim() : '';
 
   // 1. Prepare Data Map
-  const { dataMap, dynamicMedian } = useMemo(() => {
+  const dataMap = useMemo(() => {
     const map = new Map<string, any>();
-    if (!spatialData) return { dataMap: map, dynamicMedian: 0 };
+    if (!spatialData) return map;
     
     const changes: number[] = [];
 
@@ -136,10 +136,7 @@ export default function MapVisualizer({
       map.set(d.prefecture_en.toLowerCase(), { ...d, adjusted_change: adjustedChange, residual, hotspot_type: hotspotType });
     });
     
-    changes.sort((a, b) => a - b);
-    const median = changes[Math.floor(changes.length / 2)] ?? 0;
-
-    return { dataMap: map, dynamicMedian: median };
+    return map;
   }, [spatialData, simulationModifiers]);
 
   // 2. Enrich GeoJSON Features
@@ -165,11 +162,12 @@ export default function MapVisualizer({
         let predColor = '#2a2a2a';
         if (hasData && typeof data.adjusted_change === 'number') {
           const val = data.adjusted_change;
-          if (val < dynamicMedian - 2.5) predColor = '#d73027'; // Way worse than median
-          else if (val < dynamicMedian - 0.5) predColor = '#fc8d59'; // Worse than median
-          else if (val <= dynamicMedian + 0.5) predColor = '#fee090'; // Around median
-          else if (val <= dynamicMedian + 2.5) predColor = '#e0f3f8'; // Better than median
-          else predColor = '#4575b4'; // Way better than median
+          const baselineMedian = data.national_median || -3.06;
+          if (val < baselineMedian - 2.5) predColor = '#d73027'; // Way worse than baseline median
+          else if (val < baselineMedian - 0.5) predColor = '#fc8d59'; // Worse than baseline median
+          else if (val <= baselineMedian + 0.5) predColor = '#fee090'; // Around baseline median
+          else if (val <= baselineMedian + 2.5) predColor = '#e0f3f8'; // Better than baseline median
+          else predColor = '#4575b4'; // Way better than baseline median
         }
         newProps.prediction_color = predColor;
 
