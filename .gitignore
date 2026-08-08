@@ -22,5 +22,11 @@ venv/
 .vscode/
 .idea/
 
-# Markdown documentation
-*.md
+# Internal docs (not for repo)
+Memory.md
+Phase.md
+Rules.md
+ASCII.md
+Architecture.md
+RequirementData.md
+notes.md
