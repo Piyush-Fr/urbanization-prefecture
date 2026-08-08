@@ -22,6 +22,7 @@ interface LiquidGlassSliderProps {
   className?: string;
   showValue?: boolean;
   disabled?: boolean;
+  label?: string;
   valueFormatter?: (value: number) => string;
   accentColor?: string;
 }
