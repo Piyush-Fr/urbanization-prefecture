@@ -38,37 +38,32 @@ export default function Home() {
 
   useGSAP(() => {
     // ----------------------------------------------------
-    // Section 0: Hero Section zooms out on scroll
+    // Section 0: Hero Section Entrance Animation
     // ----------------------------------------------------
-    const tl0 = gsap.timeline({
-      scrollTrigger: {
-        trigger: "#section-hero",
-        start: "top top",
-        end: "+=150%",
-        scrub: 1,
-        pin: true,
-      }
-    });
-
-    // Fade out the scroll prompt as we scroll down
-    tl0.to([scrollDownRef.current, loadLineRef.current], { opacity: 0, duration: 0.2 }, 0);
+    const tl0 = gsap.timeline();
 
     // Zoom out the circle and the text
     tl0.fromTo(loadCircleRef.current,
       { scale: 20, opacity: 0, filter: 'blur(20px)' },
-      { scale: 1, opacity: 1, filter: 'blur(0px)', ease: 'power2.out', duration: 1 },
+      { scale: 1, opacity: 1, filter: 'blur(0px)', ease: 'power2.out', duration: 1.5 },
       0.1
     )
     .fromTo(loadJpRef.current,
       { scale: 20, opacity: 0, filter: 'blur(20px)' },
-      { scale: 1, opacity: 1, filter: 'blur(0px)', ease: 'power2.out', duration: 1 },
+      { scale: 1, opacity: 1, filter: 'blur(0px)', ease: 'power2.out', duration: 1.5 },
       0.1
     )
-    // Fade in subtitle and description
-    .fromTo([loadSubRef.current, ".hero-desc"], 
+    // Fade in subtitle
+    .fromTo(loadSubRef.current, 
       { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 0.5 },
-      0.6
+      { opacity: 1, y: 0, duration: 0.8 },
+      1.0
+    )
+    // Fade in button and scroll prompt
+    .fromTo([".hero-btn", ".hero-scroll"],
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.8, stagger: 0.2 },
+      1.4
     );
 
     // ----------------------------------------------------
@@ -259,19 +254,28 @@ export default function Home() {
 
             {/* Description */}
             <div className="hero-desc">
-              <TextEffect delay={0} as="p" per="word" className="text-[#a0a0a0] text-xs sm:text-sm md:text-base font-light leading-relaxed max-w-[280px] sm:max-w-[380px]">
+              <TextEffect delay={1.2} as="p" per="word" className="text-[#a0a0a0] text-xs sm:text-sm md:text-base font-light leading-relaxed max-w-[280px] sm:max-w-[380px]">
                 An advanced predictive model analyzing <span className="font-medium text-[#d80707]">urbanization</span> and<br className="hidden md:block"/> <span className="font-medium text-[#d80707]">demographic shifts</span> across Japan.
               </TextEffect>
+            </div>
+
+            {/* Button */}
+            <div className="hero-btn mt-10">
+               <Link href="/model">
+                 <button className="px-8 py-3 border border-[#e27676] text-[#e27676] text-xs tracking-[0.2em] uppercase hover:bg-[#e27676] hover:text-[#fbf9f8] transition-all duration-300 rounded-full font-medium">
+                   Go to Model
+                 </button>
+               </Link>
             </div>
           </div>
         </div>
 
-        {/* Vertical Scroll Indicator */}
-        <div ref={loadLineRef} className="absolute bottom-24 md:bottom-32 w-[1px] h-12 md:h-20 bg-[#ebc8c8]" />
-        
-        {/* Scroll Down Prompt */}
-        <div ref={scrollDownRef} className="absolute bottom-12 md:bottom-16 text-[#a0a0a0] text-[10px] tracking-[0.3em] uppercase font-light animate-bounce">
-          Scroll Down
+        {/* Scroll Indicator */}
+        <div className="hero-scroll absolute bottom-8 md:bottom-12 flex flex-col items-center gap-3">
+          <div className="text-[#a0a0a0] text-[9px] md:text-[10px] tracking-[0.3em] uppercase font-light animate-bounce">
+            Scroll to know more
+          </div>
+          <div ref={loadLineRef} className="w-[1px] h-10 md:h-16 bg-[#ebc8c8]" />
         </div>
       </section>
 
