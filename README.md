@@ -147,6 +147,17 @@ Final metrics:
   LOOCV R²   : 0.9120
 ```
 
+### Classification Metrics (Relative to Median)
+
+Because 46 out of 47 prefectures in Japan are facing population decline, absolute binary classification (Growth > 0%) is heavily imbalanced. To properly evaluate the model's discriminative power, prefectures were classified as performing "Better than Average" or "Worse than Average" based on the national median population change (-3.06%).
+
+| Metric | Score | Interpretation |
+|---|---|---|
+| **Accuracy** | **85.1%** | Correctly predicts if a prefecture is in the top or bottom half of the country |
+| **Precision** | **0.90** | When predicting "Above Median", it is correct 90% of the time |
+| **Recall** | **0.79** | Successfully identifies 79% of all "Above Median" prefectures |
+| **F1 Score** | **0.84** | Harmonic mean of precision and recall |
+
 ### Ridge Coefficients (Feature Impacts)
 
 These are the standardized coefficients from fitting Ridge on the full dataset. They are served directly by the API and used to render SHAP-style bar charts in the dashboard.
