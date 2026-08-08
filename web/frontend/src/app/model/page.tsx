@@ -48,10 +48,11 @@ export default function ModelDashboard() {
   useEffect(() => {
     async function loadData() {
       try {
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
         const [spatialRes, geoRes, impactRes] = await Promise.all([
-          fetch('http://127.0.0.1:8000/api/spatial-data'),
-          fetch('http://127.0.0.1:8000/api/geojson'),
-          fetch('http://127.0.0.1:8000/api/feature-impacts'),
+          fetch(`${API_BASE}/api/spatial-data`),
+          fetch(`${API_BASE}/api/geojson`),
+          fetch(`${API_BASE}/api/feature-impacts`),
         ]);
         if (spatialRes.ok) setSpatialData(await spatialRes.json());
         if (geoRes.ok) setGeoJson(await geoRes.json());

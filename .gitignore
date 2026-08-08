@@ -12,10 +12,9 @@ venv/
 
 # Environment variables
 .env
+.env.*
 
 # Data and Notebooks
-data/raw/
-data/processed/
 .ipynb_checkpoints/
 
 # OS and IDE
