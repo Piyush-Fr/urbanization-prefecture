@@ -19,10 +19,10 @@ export default function LeaderboardTable({
 }: LeaderboardTableProps) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('adjustedChange');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
   const processedData = useMemo(() => {
-    return spatialData.map(d => {
+    const mapped = spatialData.map(d => {
       const adjustedChange =
         d.target_pop_change_pct +
         (simulationModifiers.migration - 1.0) * 5 -
@@ -31,6 +31,11 @@ export default function LeaderboardTable({
       const info = getPrefectureInfo(d.prefecture_en);
       return { ...d, adjustedChange, jp: info?.jp || '', region: info?.region || '' };
     });
+
+    const sortedVals = [...mapped].map(d => d.adjustedChange).sort((a, b) => a - b);
+    const dynamicMedian = sortedVals[Math.floor(sortedVals.length / 2)] ?? 0;
+
+    return mapped.map(d => ({ ...d, isAboveMedian: d.adjustedChange >= dynamicMedian }));
   }, [spatialData, simulationModifiers]);
 
   const filtered = useMemo(() => {
@@ -56,7 +61,7 @@ export default function LeaderboardTable({
       setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortKey(key);
-      setSortDir('asc');
+      setSortDir('desc');
     }
   };
 
@@ -118,7 +123,7 @@ export default function LeaderboardTable({
       >
         {sorted.map((pref, idx) => {
           const isSelected = selectedPrefecture === pref.prefecture_en;
-          const isNeg = pref.adjustedChange < 0;
+          const isBelowMedian = !pref.isAboveMedian;
           return (
             <div
               key={pref.prefecture_en}
@@ -133,7 +138,7 @@ export default function LeaderboardTable({
               <div className="col-span-1 flex items-center">
                 <span
                   className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                    isNeg ? 'bg-[#d73027]/20 text-[#d73027]' : 'bg-[#4caf50]/20 text-[#4caf50]'
+                    isBelowMedian ? 'bg-[#d73027]/20 text-[#d73027]' : 'bg-[#4caf50]/20 text-[#4caf50]'
                   }`}
                 >
                   {idx + 1}
@@ -147,7 +152,7 @@ export default function LeaderboardTable({
               </div>
 
               {/* Change */}
-              <div className={`col-span-2 text-right flex items-center justify-end text-xs font-semibold ${isNeg ? 'text-[#e27676]' : 'text-[#4caf50]'}`}>
+              <div className={`col-span-2 text-right flex items-center justify-end text-xs font-semibold ${isBelowMedian ? 'text-[#e27676]' : 'text-[#4caf50]'}`}>
                 {pref.adjustedChange > 0 ? '+' : ''}{pref.adjustedChange.toFixed(2)}%
               </div>
 

@@ -109,10 +109,12 @@ export default function MapVisualizer({
   const cleanName = (name: string) => name ? name.replace(/\s*(Fu|To|Ken|Do|Prefecture)$/i, '').trim() : '';
 
   // 1. Prepare Data Map
-  const dataMap = useMemo(() => {
+  const { dataMap, dynamicMedian } = useMemo(() => {
     const map = new Map<string, any>();
-    if (!spatialData) return map;
+    if (!spatialData) return { dataMap: map, dynamicMedian: 0 };
     
+    const changes: number[] = [];
+
     spatialData.forEach((d) => {
       const adjustedChange =
         d.target_pop_change_pct +
@@ -120,6 +122,8 @@ export default function MapVisualizer({
         (simulationModifiers.aging - 1.0) * 5 -
         (simulationModifiers.vacancy - 1.0) * 2;
         
+      changes.push(adjustedChange);
+
       const residual = adjustedChange - (-2.1);
       const spatialLag = residual * 0.6 + (Math.random() - 0.5) * 0.2;
       
@@ -131,7 +135,11 @@ export default function MapVisualizer({
 
       map.set(d.prefecture_en.toLowerCase(), { ...d, adjusted_change: adjustedChange, residual, hotspot_type: hotspotType });
     });
-    return map;
+    
+    changes.sort((a, b) => a - b);
+    const median = changes[Math.floor(changes.length / 2)] ?? 0;
+
+    return { dataMap: map, dynamicMedian: median };
   }, [spatialData, simulationModifiers]);
 
   // 2. Enrich GeoJSON Features
@@ -157,11 +165,11 @@ export default function MapVisualizer({
         let predColor = '#2a2a2a';
         if (hasData && typeof data.adjusted_change === 'number') {
           const val = data.adjusted_change;
-          if (val <= -5) predColor = '#d73027';
-          else if (val <= -2) predColor = '#fc8d59';
-          else if (val <= 0) predColor = '#fee090';
-          else if (val <= 2) predColor = '#e0f3f8';
-          else predColor = '#4575b4';
+          if (val < dynamicMedian - 2.5) predColor = '#d73027'; // Way worse than median
+          else if (val < dynamicMedian - 0.5) predColor = '#fc8d59'; // Worse than median
+          else if (val <= dynamicMedian + 0.5) predColor = '#fee090'; // Around median
+          else if (val <= dynamicMedian + 2.5) predColor = '#e0f3f8'; // Better than median
+          else predColor = '#4575b4'; // Way better than median
         }
         newProps.prediction_color = predColor;
 

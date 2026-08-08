@@ -39,9 +39,17 @@ async def get_feature_impacts():
 @router.get("/spatial-data")
 async def get_spatial_data():
     df = pd.read_csv(SPATIAL_PANEL_PATH)
+    
+    # Calculate median for classification
+    median_val = df['target_pop_change_pct'].median()
+    df['is_above_median'] = df['target_pop_change_pct'] >= median_val
+    df['national_median'] = median_val
+
     cols = [
         'prefecture_en', 
         'target_pop_change_pct', 
+        'is_above_median',
+        'national_median',
         'population_2020', 
         'population_2024',
         'aging_rate_pct',

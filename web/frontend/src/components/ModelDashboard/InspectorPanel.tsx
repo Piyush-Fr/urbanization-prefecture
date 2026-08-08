@@ -65,7 +65,7 @@ export default function InspectorPanel({
 
   if (!prefecture || !prefData) return null;
 
-  const isGrowth = prefData.target_pop_change_pct >= 0;
+  const isBetterThanMedian = prefData.is_above_median;
   const prefInfo = getPrefectureInfo(prefData.prefecture_en);
   const jpName = prefInfo?.jp || '';
   const region = prefInfo?.region || '';
@@ -90,10 +90,12 @@ export default function InspectorPanel({
               )}
             </div>
             <div className="flex items-center gap-2 mt-2">
-              <span className={`text-xl font-semibold ${isGrowth ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
+              <span className={`text-xl font-semibold ${isBetterThanMedian ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
                 {prefData.target_pop_change_pct > 0 ? '+' : ''}{prefData.target_pop_change_pct.toFixed(2)}%
               </span>
-              <span className="text-[10px] text-gray-500 uppercase tracking-widest">2020–2024 Projected</span>
+              <span className={`text-[9px] px-2 py-0.5 rounded-md uppercase tracking-widest ${isBetterThanMedian ? 'bg-[#4caf50]/20 text-[#4caf50]' : 'bg-[#e27676]/20 text-[#e27676]'}`}>
+                {isBetterThanMedian ? 'Above Median' : 'Below Median'}
+              </span>
             </div>
           </div>
           <button onClick={onClose} className="p-2 bg-white/5 hover:bg-white/20 rounded-full transition-colors flex-shrink-0">

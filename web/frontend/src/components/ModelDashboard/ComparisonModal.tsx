@@ -102,7 +102,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
             <div className="text-center bg-white/5 border border-white/10 rounded-xl p-4">
               <div className="text-xl font-light text-white">{prefA.prefecture_en}</div>
               <div className="text-gray-400 tracking-widest mt-0.5">{infoA?.jp}</div>
-              <div className={`text-2xl font-semibold mt-2 ${prefA.target_pop_change_pct >= 0 ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
+              <div className={`text-2xl font-semibold mt-2 ${prefA.is_above_median ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
                 {prefA.target_pop_change_pct > 0 ? '+' : ''}{prefA.target_pop_change_pct.toFixed(2)}%
               </div>
               <div className="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Pop Change</div>
@@ -120,7 +120,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
                 </div>
                 <ChevronDown size={14} className="text-[#e27676] flex-shrink-0" />
               </button>
-              <div className={`text-2xl font-semibold mt-2 ${prefB.target_pop_change_pct >= 0 ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
+              <div className={`text-2xl font-semibold mt-2 ${prefB.is_above_median ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
                 {prefB.target_pop_change_pct > 0 ? '+' : ''}{prefB.target_pop_change_pct.toFixed(2)}%
               </div>
               <div className="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Pop Change</div>
