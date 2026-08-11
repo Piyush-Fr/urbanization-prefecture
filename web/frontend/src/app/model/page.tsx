@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { ArrowLeft, Layers, BarChart2, Table2, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import InspectorPanel from '@/components/ModelDashboard/InspectorPanel';
 import SimulationControls from '@/components/ModelDashboard/SimulationControls';
 import LeaderboardTable from '@/components/ModelDashboard/LeaderboardTable';
@@ -101,7 +102,22 @@ export default function ModelDashboard() {
   };
 
   return (
-    <div className="w-full h-screen overflow-hidden bg-[#0a0a0a] text-white flex flex-col font-sans">
+    <div className="w-full h-screen overflow-hidden bg-[#0a0a0a] text-white flex flex-col font-sans relative">
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            key="loading-overlay"
+            initial={{ opacity: 1, backdropFilter: 'blur(40px)' }}
+            exit={{ opacity: 0, backdropFilter: 'blur(0px)' }}
+            transition={{ duration: 1.2, ease: 'easeInOut' }}
+            className="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-[#0a0a0a]/80 text-white"
+          >
+            <div className="w-16 h-16 border-2 border-[#e27676]/20 border-t-[#e27676] rounded-full animate-spin mb-8" />
+            <h2 className="text-[#e27676] text-sm md:text-base tracking-[0.4em] uppercase font-light">Initializing Simulation</h2>
+            <p className="text-gray-500 text-[10px] md:text-xs tracking-widest mt-3 uppercase">Loading Spatial Matrix...</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Top Nav */}
       <header className="h-14 border-b border-white/10 flex items-center justify-between px-5 bg-black/60 backdrop-blur-xl z-40 flex-shrink-0">

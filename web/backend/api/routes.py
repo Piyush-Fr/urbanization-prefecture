@@ -1,8 +1,10 @@
 from fastapi import FastAPI, APIRouter
+from fastapi.responses import JSONResponse
 import pandas as pd
 import json
 import os
 from pathlib import Path
+from functools import lru_cache
 
 router = APIRouter(prefix="/api")
 
@@ -12,19 +14,28 @@ GEOJSON_PATH = BASE_DIR / "data" / "raw" / "geospatial" / "prefectures_simplifie
 PROJECTIONS_PATH = os.path.join(BASE_DIR, 'data', 'processed', 'prophet_projections_2035.csv')
 SPATIAL_PANEL_PATH = os.path.join(BASE_DIR, 'data', 'processed', 'spatial_panel.csv')
 
-@router.get("/geojson")
-async def get_geojson():
-    with open(GEOJSON_PATH, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    return data
+CACHE_HEADERS = {"Cache-Control": "public, max-age=3600"}
 
-@router.get("/predictions")
-async def get_predictions():
+@lru_cache(maxsize=1)
+def load_geojson():
+    with open(GEOJSON_PATH, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+@router.get("/geojson")
+def get_geojson():
+    return JSONResponse(content=load_geojson(), headers=CACHE_HEADERS)
+
+@lru_cache(maxsize=1)
+def load_predictions():
     df = pd.read_csv(PROJECTIONS_PATH)
     return df.to_dict(orient="records")
 
+@router.get("/predictions")
+def get_predictions():
+    return JSONResponse(content=load_predictions(), headers=CACHE_HEADERS)
+
 @router.get("/feature-impacts")
-async def get_feature_impacts():
+def get_feature_impacts():
     # Hardcoded Ridge coefficients from Phase 4 for fast serving
     impacts = [
         {"feature": "Aging Rate", "coefficient": -0.938916, "type": "negative"},
@@ -34,10 +45,10 @@ async def get_feature_impacts():
         {"feature": "Vacancy Rate", "coefficient": 0.094925, "type": "positive"},
         {"feature": "Distance to Tokyo", "coefficient": 0.061088, "type": "positive"}
     ]
-    return impacts
+    return JSONResponse(content=impacts, headers=CACHE_HEADERS)
 
-@router.get("/spatial-data")
-async def get_spatial_data():
+@lru_cache(maxsize=1)
+def load_spatial_data():
     df = pd.read_csv(SPATIAL_PANEL_PATH)
     
     # Calculate median for classification
@@ -59,3 +70,7 @@ async def get_spatial_data():
         'dist_to_tokyo_km'
     ]
     return df[cols].to_dict(orient="records")
+
+@router.get("/spatial-data")
+def get_spatial_data():
+    return JSONResponse(content=load_spatial_data(), headers=CACHE_HEADERS)
