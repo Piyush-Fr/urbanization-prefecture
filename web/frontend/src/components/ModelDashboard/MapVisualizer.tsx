@@ -1,9 +1,17 @@
 'use client';
 import React, { useMemo, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, GeoJSON, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, GeoJSON, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { KANJI_MAP } from '@/lib/kanjiLookup';
+import { simulatedChange, type Feature, type Shifts } from '@/lib/model';
+
+export type LabelLang = 'jp' | 'en';
+
+// Optional basemap. Set NEXT_PUBLIC_MAP_TILE_URL (it can include your provider's API key) to show
+// background tiles under the prefectures; without it the map is drawn from the prefecture shapes alone.
+const TILE_URL = process.env.NEXT_PUBLIC_MAP_TILE_URL;
+const TILE_ATTRIBUTION = process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION || '';
 
 interface MapVisualizerProps {
   geoJson: any;
@@ -11,7 +19,9 @@ interface MapVisualizerProps {
   selectedPrefecture: string | null;
   setSelectedPrefecture: (p: string) => void;
   mapLayer: 'prediction' | 'residual' | 'hotspot';
-  simulationModifiers: { migration: number; aging: number; vacancy: number };
+  shifts: Shifts;
+  features: Feature[];
+  labelLang: LabelLang;
 }
 
 // Global styles for custom Leaflet behaviors
@@ -101,43 +111,27 @@ export default function MapVisualizer({
   selectedPrefecture,
   setSelectedPrefecture,
   mapLayer,
-  simulationModifiers
+  shifts,
+  features,
+  labelLang
 }: MapVisualizerProps) {
   const geoJsonLayerRef = useRef<any>(null);
 
   // Clean names to lowercased ascii
-  const cleanName = (name: string) => name ? name.replace(/\s*(Fu|To|Ken|Do|Prefecture)$/i, '').trim() : '';
+  // "Hokkai Do" must become "Hokkaido" (same rule as the Python pipeline), not "Hokkai".
+  const cleanName = (name: string) => name ? name.replace(/^Hokkai Do$/i, 'Hokkaido').replace(/\s*(Fu|To|Ken|Prefecture)$/i, '').trim() : '';
 
   // 1. Prepare Data Map
   const dataMap = useMemo(() => {
     const map = new Map<string, any>();
     if (!spatialData) return map;
     
-    const changes: number[] = [];
-
     spatialData.forEach((d) => {
-      const adjustedChange =
-        d.target_pop_change_pct +
-        (simulationModifiers.migration - 1.0) * 5 -
-        (simulationModifiers.aging - 1.0) * 5 -
-        (simulationModifiers.vacancy - 1.0) * 2;
-        
-      changes.push(adjustedChange);
-
-      const residual = adjustedChange - (-2.1);
-      const spatialLag = residual * 0.6 + (Math.random() - 0.5) * 0.2;
-      
-      let hotspotType = '';
-      if (residual > 0 && spatialLag > 0) hotspotType = 'HH';
-      else if (residual < 0 && spatialLag < 0) hotspotType = 'LL';
-      else if (residual > 0 && spatialLag < 0) hotspotType = 'HL';
-      else hotspotType = 'LH';
-
-      map.set(d.prefecture_en.toLowerCase(), { ...d, adjusted_change: adjustedChange, residual, hotspot_type: hotspotType });
+      map.set(d.prefecture_en.toLowerCase(), { ...d, adjusted_change: simulatedChange(d, shifts, features) });
     });
-    
+
     return map;
-  }, [spatialData, simulationModifiers]);
+  }, [spatialData, shifts, features]);
 
   // 2. Enrich GeoJSON Features
   const enrichedGeoJson = useMemo(() => {
@@ -162,7 +156,7 @@ export default function MapVisualizer({
         let predColor = '#2a2a2a';
         if (hasData && typeof data.adjusted_change === 'number') {
           const val = data.adjusted_change;
-          const baselineMedian = data.national_median || -3.06;
+          const baselineMedian = data.national_median;
           if (val < baselineMedian - 2.5) predColor = '#d73027'; // Way worse than baseline median
           else if (val < baselineMedian - 0.5) predColor = '#fc8d59'; // Worse than baseline median
           else if (val <= baselineMedian + 0.5) predColor = '#fee090'; // Around baseline median
@@ -173,16 +167,16 @@ export default function MapVisualizer({
 
         let resColor = '#2a2a2a';
         if (hasData && typeof data.residual === 'number') {
+          // residual = actual − LOOCV prediction
           const val = data.residual;
-          if (val <= -1) resColor = '#4575b4';
-          else if (val <= 0) resColor = '#ffffbf';
-          else if (val <= 1) resColor = '#fc8d59';
-          else resColor = '#d73027';
+          if (val < -0.5) resColor = '#d73027';
+          else if (val <= 0.5) resColor = '#ffffbf';
+          else resColor = '#4575b4';
         }
-        
+
         let hotColor = '#2a2a2a';
-        if (hasData && typeof data.hotspot_type === 'string') {
-          const ht = data.hotspot_type;
+        if (hasData && typeof data.lisa_cluster === 'string') {
+          const ht = data.lisa_cluster; // 'NS' (not significant) keeps the default grey
           if (ht === 'HH') hotColor = '#d73027';
           else if (ht === 'LL') hotColor = '#4575b4';
           else if (ht === 'HL') hotColor = '#fc8d59';
@@ -215,11 +209,12 @@ export default function MapVisualizer({
   const onEachFeature = (feature: any, layer: L.Layer) => {
     const enName = feature.properties?.prefecture_en || '';
     const jpName = KANJI_MAP.get(enName.toLowerCase())?.jp || feature.properties?.nam_ja || enName;
+    const label = labelLang === 'en' ? enName : jpName;
 
-    // Add permanent Kanji tooltip
-    if (jpName) {
+    // Permanent prefecture-name label (Japanese or English)
+    if (label) {
       layer.bindTooltip(
-        `<span style="color: white; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 3px black, -1px -1px 3px black, 1px -1px 3px black, -1px 1px 3px black;">${jpName}</span>`,
+        `<span style="color: white; font-size: 11px; font-weight: bold; text-shadow: 1px 1px 3px black, -1px -1px 3px black, 1px -1px 3px black, -1px 1px 3px black;">${label}</span>`,
         { permanent: true, direction: 'center', className: 'kanji-tooltip' }
       );
     }
@@ -244,7 +239,7 @@ export default function MapVisualizer({
     });
   };
 
-  const geoJsonKey = `${mapLayer}-${simulationModifiers.migration}-${simulationModifiers.aging}-${simulationModifiers.vacancy}`;
+  const geoJsonKey = `${mapLayer}-${shifts.migration}-${shifts.aging}-${shifts.vacancy}-${features.length}-${labelLang}`;
 
   const japanBounds: L.LatLngBoundsExpression = [
     [24.0, 122.0], // Southwest coordinates
@@ -264,10 +259,7 @@ export default function MapVisualizer({
         preferCanvas={true}
         style={{ height: '100%', width: '100%', background: 'transparent' }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
-        />
+        {TILE_URL && <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />}
         {enrichedGeoJson && (
           <GeoJSON
             ref={geoJsonLayerRef}

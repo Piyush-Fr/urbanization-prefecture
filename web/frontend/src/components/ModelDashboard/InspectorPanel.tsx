@@ -2,23 +2,15 @@ import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import { X, TrendingDown, TrendingUp, Users, Activity, Home, MapPin, GitCompare } from 'lucide-react';
 import { getPrefectureInfo } from '@/lib/kanjiLookup';
+import { contributions, type Feature } from '@/lib/model';
 
 interface InspectorPanelProps {
   prefecture: string | null;
   spatialData: any[];
-  featureImpacts: any[];
+  featureImpacts: Feature[];
   onClose: () => void;
   onCompare: (prefecture: string) => void;
 }
-
-const FEATURE_KEYS = [
-  { key: 'aging_rate_pct',      id: 'Aging Rate',           log: false },
-  { key: 'net_migration_rate',  id: 'Net Migration Rate',   log: false },
-  { key: 'gdp_usd_ppp_2014',    id: 'GDP (USD PPP)',        log: false },
-  { key: 'population_2020',     id: 'Log Population 2020',  log: true  },
-  { key: 'vacancy_rate_pct',    id: 'Vacancy Rate',         log: false },
-  { key: 'dist_to_tokyo_km',    id: 'Distance to Tokyo',    log: false },
-];
 
 export default function InspectorPanel({
   prefecture,
@@ -37,27 +29,7 @@ export default function InspectorPanel({
     );
     if (!pref) return { prefData: null, shapData: [], maxAbs: 1 };
 
-    // Calculate means and stddevs across all prefectures
-    const stats: Record<string, { mean: number; std: number }> = {};
-    FEATURE_KEYS.forEach(f => {
-      const vals = spatialData.map(d => (f.log ? Math.log(d[f.key] || 1) : d[f.key]));
-      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-      const variance = vals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / vals.length;
-      const std = Math.sqrt(variance) || 1;
-      stats[f.id] = { mean, std };
-    });
-
-    const shap = featureImpacts.map(impact => {
-      const featureKeyDef = FEATURE_KEYS.find(f => f.id === impact.feature);
-      if (!featureKeyDef || !stats[impact.feature]) return { name: impact.feature, value: 0, raw: 0 };
-      const rawVal = featureKeyDef.log
-        ? Math.log(pref[featureKeyDef.key] || 1)
-        : pref[featureKeyDef.key];
-      const zScore = (rawVal - stats[impact.feature].mean) / stats[impact.feature].std;
-      const localImpact = zScore * impact.coefficient;
-      return { name: impact.feature, value: localImpact, raw: pref[featureKeyDef.key] };
-    }).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-
+    const shap = contributions(pref, featureImpacts);
     const maxAbs = shap.length > 0 ? Math.max(...shap.map(d => Math.abs(d.value))) : 1;
 
     return { prefData: pref, shapData: shap, maxAbs };
@@ -132,11 +104,32 @@ export default function InspectorPanel({
           </div>
         </div>
 
+        {/* Model output */}
+        <div>
+          <h3 className="text-[10px] font-medium uppercase tracking-widest text-gray-500 mb-3">Model Output</h3>
+          <div className="grid grid-cols-2 gap-2.5">
+            <MetricCard icon={<TrendingDown size={13} />} label="Predicted (LOOCV)" value={`${prefData.predicted_change_pct > 0 ? '+' : ''}${prefData.predicted_change_pct.toFixed(2)}%`} />
+            <MetricCard
+              icon={<Activity size={13} />}
+              label="Residual"
+              value={`${prefData.residual > 0 ? '+' : ''}${prefData.residual.toFixed(2)} pts`}
+              accent={prefData.residual >= 0 ? 'green' : 'red'}
+            />
+            <MetricCard icon={<MapPin size={13} />} label="LISA Cluster" value={prefData.lisa_cluster === 'NS' ? 'Not significant' : `${prefData.lisa_cluster} (p=${prefData.lisa_p.toFixed(3)})`} />
+            <MetricCard
+              icon={<Users size={13} />}
+              label="Projected 2035"
+              value={`${(prefData.pop_2035 / 1e6).toFixed(2)}M (${prefData.projected_change_pct > 0 ? '+' : ''}${prefData.projected_change_pct.toFixed(1)}%)`}
+              accent={prefData.projected_change_pct >= 0 ? 'green' : 'red'}
+            />
+          </div>
+        </div>
+
         {/* SHAP Chart */}
         <div>
-          <h3 className="text-[10px] font-medium uppercase tracking-widest text-gray-500 mb-1">Local Feature Impacts (SHAP)</h3>
+          <h3 className="text-[10px] font-medium uppercase tracking-widest text-gray-500 mb-1">Feature Contributions (Linear SHAP)</h3>
           <p className="text-[11px] text-gray-600 mb-4 leading-relaxed">
-            Directional impact of each feature on <span className="text-gray-400">{prefData.prefecture_en}</span>'s prediction vs. national average.
+            Directional impact of each feature on <span className="text-gray-400">{prefData.prefecture_en}</span>'s prediction, in percentage points vs. the national average prefecture.
           </p>
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -153,7 +146,7 @@ export default function InspectorPanel({
                 <Tooltip
                   cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                   contentStyle={{ backgroundColor: '#111', borderColor: '#2a2a2a', color: '#fff', borderRadius: '8px', fontSize: '12px' }}
-                  formatter={(val: any) => [val > 0 ? `+${Number(val).toFixed(3)}` : Number(val).toFixed(3), 'SHAP Impact']}
+                  formatter={(val: any) => [val > 0 ? `+${Number(val).toFixed(3)}` : Number(val).toFixed(3), 'pts']}
                 />
                 <ReferenceLine x={0} stroke="#333" strokeDasharray="3 3" />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16}>

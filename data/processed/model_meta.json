@@ -1,0 +1,67 @@
+{
+  "alpha": 5.0,
+  "intercept": -3.0603827182347545,
+  "metrics": {
+    "loocv_rmse": 0.4825137507867114,
+    "loocv_mae": 0.38902577325284465,
+    "loocv_r2": 0.9142902745318343,
+    "median_threshold_pct": -3.0611115040100696,
+    "accuracy": 0.851063829787234,
+    "precision": 0.9047619047619048,
+    "recall": 0.7916666666666666,
+    "f1": 0.8444444444444444,
+    "residual_morans_i": 0.3829629462694888,
+    "residual_morans_p": 0.001,
+    "spatial_lag_rho": 0.1882194439409649
+  },
+  "features": [
+    {
+      "key": "log_pop_2020",
+      "feature": "Log Population 2020",
+      "coefficient": 0.131520333818781,
+      "mean": 14.443365331174432,
+      "scale": 0.7859182845347716,
+      "type": "positive"
+    },
+    {
+      "key": "gdp_usd_ppp_2014",
+      "feature": "GDP (USD PPP)",
+      "coefficient": -0.136673987968616,
+      "mean": 106184.14893617021,
+      "scale": 145140.85483345593,
+      "type": "negative"
+    },
+    {
+      "key": "aging_rate_pct",
+      "feature": "Aging Rate",
+      "coefficient": -0.9367523431428095,
+      "mean": 31.834042553191495,
+      "scale": 3.3781700066654294,
+      "type": "negative"
+    },
+    {
+      "key": "net_migration_rate",
+      "feature": "Net Migration Rate",
+      "coefficient": 0.6746380320138969,
+      "mean": -0.5404255319148936,
+      "scale": 2.583882908096336,
+      "type": "positive"
+    },
+    {
+      "key": "vacancy_rate_pct",
+      "feature": "Vacancy Rate",
+      "coefficient": 0.0956559796187934,
+      "mean": 14.712313776607067,
+      "scale": 2.6932178606065196,
+      "type": "positive"
+    },
+    {
+      "key": "dist_to_tokyo_km",
+      "feature": "Distance to Tokyo",
+      "coefficient": 0.0676199651416749,
+      "mean": 465.54312905697134,
+      "scale": 314.8301806273506,
+      "type": "positive"
+    }
+  ]
+}

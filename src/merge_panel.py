@@ -59,11 +59,13 @@ def main():
     # Region
     features["region"] = df_mapping.set_index("pref_en")["region"]
     
-    # Spatial: Distance to Tokyo (in km)
-    tokyo_centroid = gdf[gdf["prefecture_en"] == "Tokyo"].geometry.centroid.iloc[0]
-    gdf_centroids = gdf.set_index("prefecture_en").geometry.centroid
-    dist_to_tokyo = gdf_centroids.distance(tokyo_centroid) / 1000  # meters to km
-    features["dist_to_tokyo_km"] = dist_to_tokyo
+    # Spatial: great-circle distance to Tokyo (km). Planar Web Mercator distances
+    # overstate by ~1/cos(lat) (≈20–45% across Japan), so use haversine on lat/lon centroids.
+    c = gdf.set_index("prefecture_en").geometry.centroid.to_crs("EPSG:4326")
+    lat, lon = np.radians(c.y), np.radians(c.x)
+    t_lat, t_lon = lat["Tokyo"], lon["Tokyo"]
+    a = np.sin((lat - t_lat) / 2) ** 2 + np.cos(lat) * np.cos(t_lat) * np.sin((lon - t_lon) / 2) ** 2
+    features["dist_to_tokyo_km"] = 6371.0 * 2 * np.arcsin(np.sqrt(a))
     
     # Reset index to have prefecture_en as a column
     features = features.reset_index()

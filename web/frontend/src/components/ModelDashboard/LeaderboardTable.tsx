@@ -1,19 +1,22 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronUp, ChevronDown, Search } from 'lucide-react';
 import { getPrefectureInfo } from '@/lib/kanjiLookup';
+import { simulatedChange, type Feature, type Shifts } from '@/lib/model';
 
 type SortKey = 'adjustedChange' | 'aging_rate_pct' | 'net_migration_rate' | 'population_2024';
 
 interface LeaderboardTableProps {
   spatialData: any[];
-  simulationModifiers: { migration: number; aging: number; vacancy: number };
+  shifts: Shifts;
+  features: Feature[];
   selectedPrefecture: string | null;
   setSelectedPrefecture: (id: string | null) => void;
 }
 
 export default function LeaderboardTable({
   spatialData,
-  simulationModifiers,
+  shifts,
+  features,
   selectedPrefecture,
   setSelectedPrefecture,
 }: LeaderboardTableProps) {
@@ -23,17 +26,13 @@ export default function LeaderboardTable({
 
   const processedData = useMemo(() => {
     const mapped = spatialData.map(d => {
-      const adjustedChange =
-        d.target_pop_change_pct +
-        (simulationModifiers.migration - 1.0) * 5 -
-        (simulationModifiers.aging - 1.0) * 5 -
-        (simulationModifiers.vacancy - 1.0) * 2;
+      const adjustedChange = simulatedChange(d, shifts, features);
       const info = getPrefectureInfo(d.prefecture_en);
       return { ...d, adjustedChange, jp: info?.jp || '', region: info?.region || '' };
     });
 
-    return mapped.map(d => ({ ...d, isBelowBaseline: d.adjustedChange < (d.national_median || -3.06) }));
-  }, [spatialData, simulationModifiers]);
+    return mapped.map(d => ({ ...d, isBelowBaseline: d.adjustedChange < d.national_median }));
+  }, [spatialData, shifts, features]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -91,7 +90,7 @@ export default function LeaderboardTable({
           className="col-span-2 text-right flex items-center justify-end gap-0.5 cursor-pointer hover:text-white transition-colors"
           onClick={() => handleSort('adjustedChange')}
         >
-          Change <SortIcon col="adjustedChange" />
+          Predicted <SortIcon col="adjustedChange" />
         </div>
         <div
           className="col-span-2 text-right flex items-center justify-end gap-0.5 cursor-pointer hover:text-white transition-colors"

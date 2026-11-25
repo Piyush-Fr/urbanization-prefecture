@@ -3,39 +3,13 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Refere
 import { X, ChevronDown } from 'lucide-react';
 import { getPrefectureInfo } from '@/lib/kanjiLookup';
 import { PREFECTURE_DATA } from '@/lib/kanjiLookup';
+import { contributions, type Feature } from '@/lib/model';
 
 interface ComparisonModalProps {
   prefectureA: string;
   spatialData: any[];
-  featureImpacts: any[];
+  featureImpacts: Feature[];
   onClose: () => void;
-}
-
-const FEATURE_KEYS = [
-  { key: 'aging_rate_pct',      id: 'Aging Rate',           log: false, unit: '%',    lowerIsBetter: true },
-  { key: 'net_migration_rate',  id: 'Net Migration Rate',   log: false, unit: '/1k',  lowerIsBetter: false },
-  { key: 'gdp_usd_ppp_2014',    id: 'GDP (USD PPP)',        log: false, unit: '$',    lowerIsBetter: false },
-  { key: 'population_2020',     id: 'Log Population 2020',  log: true,  unit: '',     lowerIsBetter: false },
-  { key: 'vacancy_rate_pct',    id: 'Vacancy Rate',         log: false, unit: '%',    lowerIsBetter: true },
-  { key: 'dist_to_tokyo_km',    id: 'Dist to Tokyo',        log: false, unit: 'km',   lowerIsBetter: true },
-];
-
-function getShap(pref: any, spatialData: any[], featureImpacts: any[]) {
-  const stats: Record<string, { mean: number; std: number }> = {};
-  FEATURE_KEYS.forEach(f => {
-    const vals = spatialData.map(d => (f.log ? Math.log(d[f.key] || 1) : d[f.key]));
-    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-    const variance = vals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / vals.length;
-    stats[f.id] = { mean, std: Math.sqrt(variance) || 1 };
-  });
-
-  return featureImpacts.map(impact => {
-    const fk = FEATURE_KEYS.find(f => f.id === impact.feature);
-    if (!fk || !stats[impact.feature]) return { name: impact.feature, value: 0 };
-    const rawVal = fk.log ? Math.log(pref[fk.key] || 1) : pref[fk.key];
-    const zScore = (rawVal - stats[impact.feature].mean) / stats[impact.feature].std;
-    return { name: impact.feature, value: zScore * impact.coefficient };
-  }).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 }
 
 export default function ComparisonModal({ prefectureA, spatialData, featureImpacts, onClose }: ComparisonModalProps) {
@@ -49,8 +23,8 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
   const prefA = useMemo(() => spatialData.find(d => d.prefecture_en?.toLowerCase() === prefectureA.toLowerCase()), [prefectureA, spatialData]);
   const prefB = useMemo(() => spatialData.find(d => d.prefecture_en?.toLowerCase() === prefBName.toLowerCase()), [prefBName, spatialData]);
 
-  const shapA = useMemo(() => prefA ? getShap(prefA, spatialData, featureImpacts) : [], [prefA, spatialData, featureImpacts]);
-  const shapB = useMemo(() => prefB ? getShap(prefB, spatialData, featureImpacts) : [], [prefB, spatialData, featureImpacts]);
+  const shapA = useMemo(() => prefA ? contributions(prefA, featureImpacts) : [], [prefA, featureImpacts]);
+  const shapB = useMemo(() => prefB ? contributions(prefB, featureImpacts) : [], [prefB, featureImpacts]);
 
   const maxAbs = useMemo(() => {
     const allVals = [...shapA, ...shapB].map(d => Math.abs(d.value));
@@ -63,7 +37,8 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
   if (!prefA || !prefB) return null;
 
   const metrics = [
-    { label: 'Predicted Change', valA: `${prefA.target_pop_change_pct.toFixed(2)}%`, valB: `${prefB.target_pop_change_pct.toFixed(2)}%`, numA: prefA.target_pop_change_pct, numB: prefB.target_pop_change_pct, lowerIsBetter: false },
+    { label: 'Predicted (LOOCV)', valA: `${prefA.predicted_change_pct.toFixed(2)}%`, valB: `${prefB.predicted_change_pct.toFixed(2)}%`, numA: prefA.predicted_change_pct, numB: prefB.predicted_change_pct, lowerIsBetter: false },
+    { label: 'Projected 2035', valA: `${prefA.projected_change_pct.toFixed(1)}%`, valB: `${prefB.projected_change_pct.toFixed(1)}%`, numA: prefA.projected_change_pct, numB: prefB.projected_change_pct, lowerIsBetter: false },
     { label: 'Aging Rate', valA: `${prefA.aging_rate_pct.toFixed(1)}%`, valB: `${prefB.aging_rate_pct.toFixed(1)}%`, numA: prefA.aging_rate_pct, numB: prefB.aging_rate_pct, lowerIsBetter: true },
     { label: 'Net Migration', valA: `${prefA.net_migration_rate > 0 ? '+' : ''}${prefA.net_migration_rate.toFixed(1)}/1k`, valB: `${prefB.net_migration_rate > 0 ? '+' : ''}${prefB.net_migration_rate.toFixed(1)}/1k`, numA: prefA.net_migration_rate, numB: prefB.net_migration_rate, lowerIsBetter: false },
     { label: 'GDP (PPP)', valA: `$${Math.round(prefA.gdp_usd_ppp_2014 / 1000)}k`, valB: `$${Math.round(prefB.gdp_usd_ppp_2014 / 1000)}k`, numA: prefA.gdp_usd_ppp_2014, numB: prefB.gdp_usd_ppp_2014, lowerIsBetter: false },
@@ -105,7 +80,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
               <div className={`text-2xl font-semibold mt-2 ${prefA.is_above_median ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
                 {prefA.target_pop_change_pct > 0 ? '+' : ''}{prefA.target_pop_change_pct.toFixed(2)}%
               </div>
-              <div className="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Pop Change</div>
+              <div className="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Actual 2020–24</div>
             </div>
 
             {/* Prefecture B — Dropdown */}
@@ -123,7 +98,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
               <div className={`text-2xl font-semibold mt-2 ${prefB.is_above_median ? 'text-[#4caf50]' : 'text-[#e27676]'}`}>
                 {prefB.target_pop_change_pct > 0 ? '+' : ''}{prefB.target_pop_change_pct.toFixed(2)}%
               </div>
-              <div className="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Pop Change</div>
+              <div className="text-[10px] text-gray-600 uppercase tracking-widest mt-1">Actual 2020–24</div>
 
               {/* Dropdown */}
               {dropdownOpen && (
@@ -174,7 +149,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
                 <h3 className="text-xs font-medium text-gray-400 mb-1">
                   {side.label} <span className="text-gray-600">{side.jp}</span>
                 </h3>
-                <p className="text-[10px] text-gray-600 mb-3">SHAP Feature Impacts</p>
+                <p className="text-[10px] text-gray-600 mb-3">Feature contributions (linear SHAP)</p>
                 <div className="h-[220px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={side.data} layout="vertical" margin={{ top: 0, right: 16, left: 10, bottom: 0 }}>
@@ -183,7 +158,7 @@ export default function ComparisonModal({ prefectureA, spatialData, featureImpac
                       <Tooltip
                         cursor={{ fill: 'rgba(255,255,255,0.04)' }}
                         contentStyle={{ backgroundColor: '#111', borderColor: '#2a2a2a', color: '#fff', borderRadius: '8px', fontSize: '11px' }}
-                        formatter={(val: any) => [Number(val).toFixed(3), 'SHAP']}
+                        formatter={(val: any) => [Number(val).toFixed(3), 'pts']}
                       />
                       <ReferenceLine x={0} stroke="#333" strokeDasharray="3 3" />
                       <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={14}>

@@ -23,6 +23,7 @@ interface LiquidGlassSliderProps {
   showValue?: boolean;
   disabled?: boolean;
   label?: string;
+  ariaLabel?: string;
   valueFormatter?: (value: number) => string;
   accentColor?: string;
 }
@@ -38,6 +39,7 @@ export function LiquidGlassSlider({
   disabled,
   label,
   valueFormatter,
+  ariaLabel,
   accentColor = "#3b82f6",
 }: LiquidGlassSliderProps) {
   const [isDragging, setIsDragging] = useState(false);
@@ -92,19 +94,29 @@ export function LiquidGlassSlider({
     [min, max, step, onChange, disabled]
   );
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Pointer events cover mouse, touch and pen.
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
     setIsDragging(true);
     handleMove(e.clientX);
 
-    const handleMouseMove = (ev: MouseEvent) => handleMove(ev.clientX);
-    const handleMouseUp = () => {
+    const handlePointerMove = (ev: PointerEvent) => handleMove(ev.clientX);
+    const handlePointerUp = () => {
       setIsDragging(false);
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
     };
-    window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const next = { ArrowRight: localValue + step, ArrowUp: localValue + step, ArrowLeft: localValue - step, ArrowDown: localValue - step, Home: min, End: max }[e.key];
+    if (next === undefined || disabled) return;
+    e.preventDefault();
+    const clamped = Math.max(min, Math.min(max, Math.round(next / step) * step));
+    setLocalValue(clamped);
+    onChange?.(clamped);
   };
 
   return (
@@ -149,9 +161,19 @@ export function LiquidGlassSlider({
       </div>
       <div
         ref={trackRef}
-        onMouseDown={handleMouseDown}
+        onPointerDown={handlePointerDown}
+        onKeyDown={handleKeyDown}
+        role="slider"
+        tabIndex={disabled ? -1 : 0}
+        aria-label={ariaLabel ?? label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={localValue}
+        aria-valuetext={valueFormatter ? valueFormatter(localValue) : undefined}
+        aria-disabled={disabled}
         className={cn(
-          "relative h-2 rounded-full cursor-pointer overflow-visible",
+          "relative h-2 rounded-full cursor-pointer overflow-visible touch-none",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white/60",
           "glass-blur-sm glass-surface-dark border",
           isDark ? "border-[var(--lg-border-subtle)]" : "border-black/5",
           disabled && "cursor-not-allowed opacity-50"

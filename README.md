@@ -24,11 +24,11 @@ Japan is undergoing one of the most severe demographic transitions in modern his
 
 This project builds a spatial ML pipeline that:
 
-1. Engineers features from multi-source government data (e-Stat, Kaggle census data)
+1. Engineers features from multi-source government data (e-Stat, Kaggle GDP data)
 2. Trains a regularized Ridge Regression model validated with Leave-One-Out Cross-Validation
-3. Performs spatial diagnostics using Moran's I and LISA cluster analysis
-4. Serves predictions and feature attributions via a REST API
-5. Visualizes everything on an interactive choropleth map
+3. Performs spatial diagnostics using Moran's I and LISA cluster analysis on the model residuals
+4. Serves out-of-sample predictions, residuals, LISA clusters and feature attributions via a REST API
+5. Visualizes everything on an interactive choropleth map with a what-if simulator driven by the model
 
 ---
 
@@ -47,7 +47,8 @@ This project builds a spatial ML pipeline that:
           │  • GeoJSON       │         │  2. Engineer     │
           └──────────────────┘         │     Features     │
                                        │  3. Ridge + LOOCV│
-                                       │  4. Spatial Diag │
+                                       │     + LISA       │
+                                       │  4. 2035 project │
                                        └────────┬─────────┘
                                                 │ outputs
                                                 ▼
@@ -55,8 +56,9 @@ This project builds a spatial ML pipeline that:
                                     │   data/processed/     │
                                     │                       │
                                     │  spatial_panel.csv    │
-                                    │  prophet_2035.csv     │
-                                    │  prefectures.geojson  │
+                                    │  model_outputs.csv    │
+                                    │  model_meta.json      │
+                                    │  projections_2035.csv │
                                     └───────────┬───────────┘
                                                 │
                         ┌───────────────────────▼──────────────────────┐
@@ -66,7 +68,8 @@ This project builds a spatial ML pipeline that:
                         │   GET /api/spatial-data   → 47 prefectures   │
                         │   GET /api/geojson        → map polygons      │
                         │   GET /api/feature-impacts → coefficients     │
-                        │   GET /api/predictions    → 2035 forecasts    │
+                        │   GET /api/model-meta     → metrics + model   │
+                        │   GET /api/predictions    → 2035 projections  │
                         └───────────────────────┬──────────────────────┘
                                                 │  JSON over HTTP
                                                 ▼
@@ -117,9 +120,11 @@ Predict `target_pop_change_pct`: the percentage change in prefecture population 
 | `net_migration_rate` | Net migration per 1,000 people | Raw |
 | `gdp_usd_ppp_2014` | GDP in USD (PPP) | Raw |
 | `vacancy_rate_pct` | Housing vacancy rate | Raw |
-| `dist_to_tokyo_km` | Geographic distance to Tokyo | Raw |
+| `dist_to_tokyo_km` | Great-circle (haversine) distance between prefecture centroids and Tokyo | Raw |
 
 > **Leakage prevention**: `population_2024` was explicitly excluded from features since it is part of the target variable derivation.
+>
+> **Caveat**: `net_migration_rate` and the 2024 `aging_rate_pct` are measured within the same 2020–2024 window as the target, and net migration is itself a component of population change. The model is therefore **explanatory** (which factors account for the differences between prefectures) rather than a forecast of future change, and its R² is higher than a true forecast would achieve.
 
 ### Model Selection
 
@@ -132,22 +137,27 @@ Candidates evaluated:
   Selected: Ridge Regression  (alpha=5.0, StandardScaler)
 ```
 
+The notebooks record the XGBoost runs: LOOCV R² 0.891 (baseline) and 0.887 (with spatial lags). The spatial lag model is still fitted in `src/spatial_ridge_regression.py` for comparison; its spatial coefficient ρ = 0.19 is significant (p ≈ 0.003).
+
 ### Validation: Leave-One-Out Cross-Validation (LOOCV)
 
 With only 47 data points (one per prefecture), LOOCV was used instead of a train/test split to maximize the use of available data.
 
 ```
 For each prefecture i in 1..47:
-  Train Ridge on 46 prefectures
+  Fit StandardScaler + Ridge on the other 46 prefectures
   Predict on held-out prefecture i
   Record (y_true_i, y_pred_i)
 
 Final metrics:
-  LOOCV RMSE : 0.4890
-  LOOCV R²   : 0.9120
+  LOOCV RMSE : 0.483 percentage points
+  LOOCV MAE  : 0.389 percentage points
+  LOOCV R²   : 0.914
 ```
 
-### Classification Metrics (Relative to Median)
+The scaler is refit inside every fold (an `sklearn` pipeline), so the held-out prefecture never influences scaling. These out-of-sample predictions are what the dashboard maps.
+
+### Classification Metrics (Relative to Median, LOOCV)
 
 Because 46 out of 47 prefectures in Japan are facing population decline, absolute binary classification (Growth > 0%) is heavily imbalanced. To properly evaluate the model's discriminative power, prefectures were classified as performing "Better than Average" or "Worse than Average" based on the national median population change (-3.06%).
 
@@ -164,25 +174,32 @@ These are the standardized coefficients from fitting Ridge on the full dataset. 
 
 | Feature | Coefficient | Direction |
 |---|---|---|
-| Aging Rate | **-0.9389** | Strongest negative driver |
-| Net Migration Rate | **+0.6742** | Strongest positive driver |
-| GDP (USD PPP) | -0.1382 | Mild negative (structural transition) |
-| Log Population 2020 | +0.1292 | Scale cushion |
-| Vacancy Rate | +0.0949 | Mild positive |
-| Distance to Tokyo | +0.0611 | Mild positive |
+| Aging Rate | **-0.9368** | Strongest negative driver |
+| Net Migration Rate | **+0.6746** | Strongest positive driver |
+| GDP (USD PPP) | -0.1367 | Mild negative (structural transition) |
+| Log Population 2020 | +0.1315 | Scale cushion |
+| Vacancy Rate | +0.0957 | Mild positive |
+| Distance to Tokyo | +0.0676 | Mild positive |
+
+Coefficients are per standard deviation of each feature, in percentage points of population change. The API serves them along with the scaler mean and standard deviation, so the dashboard can compute exact per-prefecture contributions (linear SHAP values) and what-if responses.
 
 ### Spatial Diagnostics
 
-After fitting the model, **Anselin Local Moran's I** was computed on the residuals using a Queen contiguity spatial weights matrix to detect spatial autocorrelation.
+After fitting the model, **Anselin Local Moran's I** is computed on the LOOCV residuals (actual − predicted) using a row-standardized **k-nearest-neighbour (k=4)** spatial weights matrix. KNN is used instead of Queen contiguity so that island prefectures (Hokkaido, Okinawa) still have neighbours. Significance comes from 999 permutations (seeded), at p < 0.05.
 
 ```
-Residual clustering types detected:
-  HH (High-High)  → Cluster of over-predicted prefectures
-  LL (Low-Low)    → Cluster of under-predicted prefectures
-  HL / LH         → Spatial outliers
+Residual clusters (p < 0.05):
+  HH (High-High)  → 11 prefectures: cluster where population held up better than predicted
+  LL (Low-Low)    →  6 prefectures: cluster where population fell faster than predicted
+  LH / HL         →  1 spatial outlier
+  Not significant → 29 prefectures
 ```
 
-Island prefectures (Hokkaido, Okinawa) that have no Queen neighbors were patched by connecting them to their nearest neighbor using a KNN-1 fallback.
+The global Moran's I of the residuals is **0.38 (p = 0.001)**. The errors are still spatially clustered, so there is regional structure the six features don't capture. This is the most promising direction for improving the model.
+
+### 2035 Projection
+
+`src/projections_2035.py` extends each prefecture's 2020–2024 annual growth rate to 2035 (national total: 123.8M → 117.8M). An earlier Prophet model trained on 1950–2024 history was dropped: it was dominated by post-war growth and projected 34 of 47 prefectures growing. The constant-rate projection ignores the accelerating decline from aging. Use the official IPSS cohort projections if you need authoritative numbers.
 
 ---
 
@@ -194,15 +211,16 @@ Built with **FastAPI** and served by **uvicorn**.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/spatial-data` | Returns all 47 prefectures with metrics (population, aging rate, migration, GDP, vacancy, distance) |
+| `GET` | `/api/spatial-data` | Returns all 47 prefectures with features, LOOCV prediction, residual, LISA cluster and 2035 projection |
 | `GET` | `/api/geojson` | Returns the simplified GeoJSON polygon data for rendering the choropleth map |
-| `GET` | `/api/feature-impacts` | Returns the Ridge regression coefficients used for SHAP attribution |
-| `GET` | `/api/predictions` | Returns Prophet 2035 population projections per prefecture |
+| `GET` | `/api/feature-impacts` | Returns the Ridge coefficients with scaler mean/std, used for SHAP attribution and the what-if sliders |
+| `GET` | `/api/model-meta` | Returns intercept, coefficients and all evaluation metrics |
+| `GET` | `/api/predictions` | Returns 2035 population projections per prefecture |
 | `GET` | `/docs` | Auto-generated interactive API documentation (Swagger UI) |
 
 ### CORS
 
-The backend is configured to accept requests from any origin (`allow_origins=["*"]`). In production this is scoped to the Vercel frontend URL via the `NEXT_PUBLIC_API_URL` environment variable on the frontend side.
+The backend accepts requests from any origin (`allow_origins=["*"]`). That's acceptable here because the API is read-only and serves public data. The frontend finds the backend through `NEXT_PUBLIC_API_URL`.
 
 ### Directory Structure
 
@@ -232,22 +250,22 @@ Built with **Next.js 16** (App Router).
 /model page
 │
 ├── MapVisualizer       (Leaflet choropleth — 3 layer modes)
-│     ├── Prediction    Predicted % pop change per prefecture
-│     ├── Residuals     Model error per prefecture
-│     └── Hotspots      Moran's I LISA cluster map
+│     ├── Prediction    LOOCV-predicted % change vs national median
+│     ├── Residuals     Actual − predicted per prefecture
+│     └── Hotspots      LISA clusters of the residuals (p < 0.05)
 │
 ├── SimulationControls  (Left sidebar)
-│     ├── Migration multiplier slider
-│     ├── Aging rate multiplier slider
-│     └── Vacancy rate multiplier slider
-│         → Updates map colors in real-time (client-side only)
+│     ├── Net migration shift (±5 per 1,000)
+│     ├── Aging rate shift (±5 pts)
+│     └── Vacancy rate shift (±5 pts)
+│         → Pushed through the Ridge coefficients client-side (src/lib/model.ts)
 │
 ├── InspectorPanel      (Right sidebar, on prefecture click)
-│     ├── Population metrics card
-│     └── SHAP-style horizontal bar chart (Ridge coefficients × z-scores)
+│     ├── Socio-economic indicators + model output (prediction, residual, LISA, 2035)
+│     └── Linear SHAP bar chart (coefficient × z-score)
 │
 ├── LeaderboardTable    (Bottom drawer)
-│     └── Ranked list of all 47 prefectures by predicted change
+│     └── Ranked list of all 47 prefectures by predicted change (with what-if shifts)
 │
 └── ComparisonModal     (Triggered from InspectorPanel)
       ├── Side-by-side metrics table
@@ -264,10 +282,10 @@ Built with **Next.js 16** (App Router).
 |---|---|
 | `scikit-learn` | Ridge Regression, StandardScaler, LOOCV |
 | `geopandas` | Spatial data loading and CRS transforms |
-| `libpysal` | Queen contiguity spatial weights matrix |
+| `libpysal` | KNN (k=4) spatial weights matrix |
 | `esda` | Moran's I and LISA cluster analysis |
-| `spreg` | Spatial Lag regression (ML_Lag) |
-| `prophet` | 2035 population projections |
+| `spreg` | Spatial Lag regression (ML_Lag), for comparison |
+| `xgboost` / `shap` | Tree baselines in the notebooks |
 | `pandas / numpy` | Data wrangling and feature engineering |
 
 ### Backend
@@ -301,8 +319,21 @@ Built with **Next.js 16** (App Router).
 ### Backend
 
 ```bash
-# From project root
-uv run uvicorn web/backend/main:app --reload --port 8000
+# From web/backend/
+uv run uvicorn main:app --reload --port 8000
+```
+
+### Pipeline
+
+```bash
+# From project root. The first two steps need the raw e-Stat / Kaggle files in data/raw/ (not committed);
+# everything from merge_panel.py onward runs on the committed data/processed/ files.
+uv run python src/create_prefecture_mapping.py
+uv run python src/preprocess_datasets.py
+uv run python src/merge_panel.py
+uv run python src/engineer_spatial_features.py
+uv run python src/spatial_ridge_regression.py   # LOOCV, metrics, LISA -> model_outputs.csv, model_meta.json
+uv run python src/projections_2035.py           # -> projections_2035.csv
 ```
 
 ### Frontend
@@ -326,7 +357,13 @@ Create `web/frontend/.env.local`:
 
 ```env
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+
+# Optional: background map tiles under the prefectures (any XYZ tile provider; the URL may contain your API key)
+# NEXT_PUBLIC_MAP_TILE_URL=https://api.maptiler.com/maps/streets-v2-dark/{z}/{x}/{y}.png?key=YOUR_KEY
+# NEXT_PUBLIC_MAP_TILE_ATTRIBUTION=© MapTiler © OpenStreetMap contributors
 ```
+
+On Vercel, set the same variables under **Settings → Environment Variables** and redeploy. Without a tile URL the map is drawn from the prefecture shapes alone.
 
 ---
 
@@ -335,7 +372,6 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 | Dataset | Source | Description |
 |---|---|---|
 | Population estimates 2020–2024 | [e-Stat](https://www.e-stat.go.jp/) | Official Japanese government statistics |
-| Historical population 1870–2015 | Kaggle | Long-run demographic trends |
 | Prefecture GDP (USD PPP) | Kaggle | Economic output per prefecture |
 | Geospatial polygons | Natural Earth / GeoJSON | Prefecture boundary shapefiles |
 
@@ -350,9 +386,10 @@ urbanisation-growth/
 │   └── raw/geospatial/     # Prefecture boundary files
 ├── notebooks/              # EDA and model development Jupyter notebooks
 ├── src/                    # Python pipeline scripts
-│   ├── spatial_ridge_regression.py
-│   ├── engineer_spatial_features.py
 │   ├── merge_panel.py
+│   ├── engineer_spatial_features.py
+│   ├── spatial_ridge_regression.py
+│   ├── projections_2035.py
 │   └── ...
 └── web/
     ├── backend/            # FastAPI app

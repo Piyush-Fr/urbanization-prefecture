@@ -431,22 +431,22 @@ export default function Home() {
             <ul className="space-y-6 list-none">
               <li>
                 <TextEffect as="p" per="word" className="text-base md:text-lg font-light leading-loose text-gray-600">
-                  <strong className="font-medium text-black">Leakage-Free Feature Engineering:</strong> Purged <Highlight variant="red">future target component variables</Highlight>, standardized all predictors, and applied a <Highlight variant="red">log-transformation</Highlight> to baseline population (log_pop_2020) to stabilize scale variance across prefectures.
+                  <strong className="font-medium text-black">Target-Leakage Control:</strong> Removed <Highlight variant="red">2024 population</Highlight> (the target is computed from it), standardized all predictors, and applied a <Highlight variant="red">log-transformation</Highlight> to baseline population (log_pop_2020) to stabilize scale variance across prefectures.
                 </TextEffect>
               </li>
               <li>
                 <TextEffect as="p" per="word" className="text-base md:text-lg font-light leading-loose text-gray-600">
-                  <strong className="font-medium text-black">Ridge Regression Baseline:</strong> Replaced tree models with <Highlight variant="red">L2 Regularized Ridge Regression</Highlight> to evenly distribute predictive weights across features. Validated with <Highlight variant="red">Leave-One-Out Cross-Validation (LOOCV)</Highlight>, achieving an out-of-sample <Highlight variant="red">R² of 0.9120</Highlight> and an <Highlight variant="red">RMSE of 0.4890</Highlight>.
+                  <strong className="font-medium text-black">Ridge Regression Baseline:</strong> Replaced tree models with <Highlight variant="red">L2 Regularized Ridge Regression</Highlight> to evenly distribute predictive weights across features. Validated with <Highlight variant="red">Leave-One-Out Cross-Validation (LOOCV)</Highlight>, achieving an out-of-sample <Highlight variant="red">R² of 0.914</Highlight> and an <Highlight variant="red">RMSE of 0.48 points</Highlight>.
                 </TextEffect>
               </li>
               <li>
                 <TextEffect as="p" per="word" className="text-base md:text-lg font-light leading-loose text-gray-600">
-                  <strong className="font-medium text-black">Spatial Diagnostics (PySAL/ESDA):</strong> Calculated <Highlight variant="red">Anselin Local Moran’s I</Highlight> on model residuals using spatial contiguity matrices to detect regional performance clusters and <Highlight variant="red">spatial autocorrelation hotspots</Highlight>.
+                  <strong className="font-medium text-black">Spatial Diagnostics (PySAL/ESDA):</strong> Calculated <Highlight variant="red">Anselin Local Moran’s I</Highlight> on model residuals using k-nearest-neighbour (k=4) spatial weights to detect regional performance clusters and <Highlight variant="red">spatial autocorrelation hotspots</Highlight>.
                 </TextEffect>
               </li>
               <li>
                 <TextEffect as="p" per="word" className="text-base md:text-lg font-light leading-loose text-gray-600">
-                  <strong className="font-medium text-black">Linear SHAP Feature Attribution:</strong> Isolated the directional impact of key drivers: <Highlight variant="red">Aging Rate (-0.938)</Highlight> accelerates population decline, <Highlight variant="red">Net Migration (+0.674)</Highlight> serves as the primary protective buffer, <Highlight variant="red">Log Population (+0.129)</Highlight> provides a scale cushion, and <Highlight variant="red">Historical GDP (-0.138)</Highlight> captures structural economic transitions.
+                  <strong className="font-medium text-black">Linear SHAP Feature Attribution:</strong> Isolated the directional impact of key drivers: <Highlight variant="red">Aging Rate (-0.937)</Highlight> accelerates population decline, <Highlight variant="red">Net Migration (+0.675)</Highlight> serves as the primary protective buffer, <Highlight variant="red">Log Population (+0.132)</Highlight> provides a scale cushion, and <Highlight variant="red">Historical GDP (-0.137)</Highlight> captures structural economic transitions.
                 </TextEffect>
               </li>
             </ul>

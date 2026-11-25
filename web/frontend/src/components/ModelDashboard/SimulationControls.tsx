@@ -1,28 +1,30 @@
 /* eslint-disable */
 import React, { useMemo } from 'react';
-import { SlidersHorizontal, ArrowRight, Activity, Users, Home, RefreshCw } from 'lucide-react';
+import { SlidersHorizontal, Activity, Users, Home, RefreshCw } from 'lucide-react';
+import { NO_SHIFT, simulatedChange, type Feature, type Shifts } from '@/lib/model';
 
 interface SimulationControlsProps {
-  modifiers: { migration: number; aging: number; vacancy: number };
-  setModifiers: (val: any) => void;
+  shifts: Shifts;
+  setShifts: (val: Shifts) => void;
   spatialData?: any[];
+  features?: Feature[];
 }
 
-export default function SimulationControls({ modifiers, setModifiers, spatialData = [] }: SimulationControlsProps) {
-  const handleReset = () => setModifiers({ migration: 1.0, aging: 1.0, vacancy: 1.0 });
+const signed = (v: number, unit: string) => `${v > 0 ? '+' : ''}${v.toFixed(1)}${unit}`;
 
-  const isBaseline = modifiers.migration === 1.0 && modifiers.aging === 1.0 && modifiers.vacancy === 1.0;
+export default function SimulationControls({ shifts, setShifts, spatialData = [], features = [] }: SimulationControlsProps) {
+  const handleReset = () => setShifts(NO_SHIFT);
+
+  const isBaseline = shifts.migration === 0 && shifts.aging === 0 && shifts.vacancy === 0;
 
   const nationalImpact = useMemo(() => {
-    if (!spatialData.length) return null;
-    const baseline = spatialData.reduce((s, d) => s + d.target_pop_change_pct, 0) / spatialData.length;
-    const adjusted = baseline
-      + (modifiers.migration - 1.0) * 5
-      - (modifiers.aging - 1.0) * 5
-      - (modifiers.vacancy - 1.0) * 2;
+    if (!spatialData.length || !features.length) return null;
+    const mean = (f: (d: any) => number) => spatialData.reduce((s, d) => s + f(d), 0) / spatialData.length;
+    const baseline = mean(d => d.predicted_change_pct);
+    const adjusted = mean(d => simulatedChange(d, shifts, features));
     const delta = adjusted - baseline;
     return { baseline: baseline.toFixed(2), adjusted: adjusted.toFixed(2), delta: delta.toFixed(2) };
-  }, [modifiers, spatialData]);
+  }, [shifts, spatialData, features]);
 
   return (
     <div className="flex flex-col h-full text-white">
@@ -32,13 +34,14 @@ export default function SimulationControls({ modifiers, setModifiers, spatialDat
       </div>
 
       <p className="text-[11px] text-gray-500 leading-relaxed mb-6">
-        Adjust demographic and economic levers to simulate policy scenarios globally across all 47 prefectures.
+        Shift a driver by the same amount in all 47 prefectures and see how the Ridge model&apos;s predicted 2020–24 change responds.
+        The model is linear, so every prefecture moves by the same number of points.
       </p>
 
       {/* National Impact Summary */}
       {nationalImpact && (
         <div className="mb-6 p-3.5 bg-white/5 border border-white/10 rounded-xl">
-          <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Simulated National Avg.</div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-2">Predicted National Avg.</div>
           <div className="flex items-end justify-between">
             <div>
               <div className="text-xs text-gray-500">Baseline</div>
@@ -52,7 +55,7 @@ export default function SimulationControls({ modifiers, setModifiers, spatialDat
               </div>
             </div>
             <div className={`text-xs px-2 py-1 rounded font-medium ${parseFloat(nationalImpact.delta) > 0 ? 'bg-[#4caf50]/10 text-[#4caf50]' : parseFloat(nationalImpact.delta) < 0 ? 'bg-[#e27676]/10 text-[#e27676]' : 'bg-white/5 text-gray-400'}`}>
-              {parseFloat(nationalImpact.delta) > 0 ? '+' : ''}{nationalImpact.delta}%
+              {parseFloat(nationalImpact.delta) > 0 ? '+' : ''}{nationalImpact.delta} pts
             </div>
           </div>
         </div>
@@ -62,40 +65,40 @@ export default function SimulationControls({ modifiers, setModifiers, spatialDat
         {/* Migration Slider */}
         <SliderRow
           icon={<Users size={14} />}
-          label="Youth Migration Intake"
-          value={modifiers.migration}
-          min={0.5} max={2.0} step={0.05}
-          displayVal={`${((modifiers.migration - 1) * 100).toFixed(0)}%`}
+          label="Net Migration"
+          value={shifts.migration}
+          min={-5} max={5} step={0.5}
+          displayVal={signed(shifts.migration, '‰')}
           accent="green"
-          lowLabel="-50% Restrictive"
-          highLabel="+100% Aggressive"
-          onChange={v => setModifiers({ ...modifiers, migration: v })}
+          lowLabel="−5 per 1,000 (outflow)"
+          highLabel="+5 per 1,000 (inflow)"
+          onChange={v => setShifts({ ...shifts, migration: v })}
         />
 
         {/* Aging Slider */}
         <SliderRow
           icon={<Activity size={14} />}
-          label="Aging Mitigation (Healthcare)"
-          value={modifiers.aging}
-          min={0.8} max={1.5} step={0.05}
-          displayVal={`${((modifiers.aging - 1) * 100).toFixed(0)}%`}
+          label="Aging Rate (65+)"
+          value={shifts.aging}
+          min={-5} max={5} step={0.5}
+          displayVal={signed(shifts.aging, ' pts')}
           accent="red"
-          lowLabel="Improved Health"
-          highLabel="Accelerated Aging"
-          onChange={v => setModifiers({ ...modifiers, aging: v })}
+          lowLabel="−5 pts (younger)"
+          highLabel="+5 pts (older)"
+          onChange={v => setShifts({ ...shifts, aging: v })}
         />
 
         {/* Vacancy Slider */}
         <SliderRow
           icon={<Home size={14} />}
-          label="Housing Revitalization"
-          value={modifiers.vacancy}
-          min={0.5} max={1.5} step={0.05}
-          displayVal={`${((modifiers.vacancy - 1) * 100).toFixed(0)}%`}
+          label="Housing Vacancy Rate"
+          value={shifts.vacancy}
+          min={-5} max={5} step={0.5}
+          displayVal={signed(shifts.vacancy, ' pts')}
           accent="red"
-          lowLabel="Subsidized Renovation"
-          highLabel="Abandonment"
-          onChange={v => setModifiers({ ...modifiers, vacancy: v })}
+          lowLabel="−5 pts"
+          highLabel="+5 pts"
+          onChange={v => setShifts({ ...shifts, vacancy: v })}
         />
       </div>
 
@@ -137,7 +140,7 @@ function SliderRow({
           {label}
         </div>
         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded`} style={{ color, backgroundColor: `${color}18` }}>
-          {parseFloat(displayVal) > 0 ? '+' : ''}{displayVal}
+          {displayVal}
         </span>
       </div>
       <div className="py-2">
@@ -148,6 +151,8 @@ function SliderRow({
           step={step}
           onChange={onChange}
           showValue={false}
+          ariaLabel={label}
+          valueFormatter={() => displayVal}
           accentColor={color}
         />
       </div>

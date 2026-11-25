@@ -9,6 +9,8 @@ import InspectorPanel from '@/components/ModelDashboard/InspectorPanel';
 import SimulationControls from '@/components/ModelDashboard/SimulationControls';
 import LeaderboardTable from '@/components/ModelDashboard/LeaderboardTable';
 import ComparisonModal from '@/components/ModelDashboard/ComparisonModal';
+import { NO_SHIFT, type Shifts } from '@/lib/model';
+import type { LabelLang } from '@/components/ModelDashboard/MapVisualizer';
 
 const MapVisualizer = dynamic(
   () => import('@/components/ModelDashboard/MapVisualizer'),
@@ -36,15 +38,12 @@ export default function ModelDashboard() {
   // Dashboard state
   const [selectedPrefecture, setSelectedPrefecture] = useState<string | null>(null);
   const [mapLayer, setMapLayer] = useState<MapLayer>('prediction');
+  const [labelLang, setLabelLang] = useState<LabelLang>('jp');
   const [compareTarget, setCompareTarget] = useState<string | null>(null);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
-  // What-If modifiers
-  const [simulationModifiers, setSimulationModifiers] = useState({
-    migration: 1.0,
-    aging: 1.0,
-    vacancy: 1.0,
-  });
+  // What-if shifts (feature units), fed through the Ridge model
+  const [shifts, setShifts] = useState<Shifts>(NO_SHIFT);
 
   useEffect(() => {
     async function loadData() {
@@ -55,9 +54,10 @@ export default function ModelDashboard() {
           fetch(`${API_BASE}/api/geojson`),
           fetch(`${API_BASE}/api/feature-impacts`),
         ]);
-        if (spatialRes.ok) setSpatialData(await spatialRes.json());
-        if (geoRes.ok) setGeoJson(await geoRes.json());
-        if (impactRes.ok) setFeatureImpacts(await impactRes.json());
+        if (!spatialRes.ok || !geoRes.ok || !impactRes.ok) throw new Error('API error');
+        setSpatialData(await spatialRes.json());
+        setGeoJson(await geoRes.json());
+        setFeatureImpacts(await impactRes.json());
       } catch (e) {
         setError('Could not reach the backend API. Ensure the FastAPI server is running on port 8000.');
       } finally {
@@ -68,8 +68,8 @@ export default function ModelDashboard() {
   }, []);
 
   const layerLabels: Record<MapLayer, string> = {
-    prediction: 'Predicted Pop. Change',
-    residual: 'Model Residuals',
+    prediction: 'Predicted change vs national median (−3.06%)',
+    residual: 'Actual − predicted (LOOCV)',
     hotspot: 'Moran\'s I Hotspots',
   };
 
@@ -81,23 +81,23 @@ export default function ModelDashboard() {
 
   const legendItems: Record<MapLayer, { color: string; label: string }[]> = {
     prediction: [
-      { color: '#67001f', label: '≤ −8% severe' },
-      { color: '#d73027', label: '−5% decline' },
-      { color: '#fc8d59', label: '−2% moderate' },
-      { color: '#fee090', label: '~0% stable' },
-      { color: '#4575b4', label: '≥ +5% growth' },
+      { color: '#d73027', label: '> 2.5 pts below median' },
+      { color: '#fc8d59', label: '0.5–2.5 pts below' },
+      { color: '#fee090', label: 'Within ±0.5 pts' },
+      { color: '#e0f3f8', label: '0.5–2.5 pts above' },
+      { color: '#4575b4', label: '> 2.5 pts above median' },
     ],
     residual: [
-      { color: '#4575b4', label: 'Under-predicted' },
-      { color: '#ffffbf', label: 'On-target' },
-      { color: '#d73027', label: 'Over-predicted' },
+      { color: '#d73027', label: 'Fell > 0.5 pts faster than predicted' },
+      { color: '#ffffbf', label: 'Within ±0.5 pts' },
+      { color: '#4575b4', label: 'Held up > 0.5 pts better' },
     ],
     hotspot: [
-      { color: '#d73027', label: 'High-High cluster' },
-      { color: '#4575b4', label: 'Low-Low cluster' },
-      { color: '#fc8d59', label: 'High-Low outlier' },
-      { color: '#91bfdb', label: 'Low-High outlier' },
-      { color: '#2a2a2a', label: 'Not significant' },
+      { color: '#d73027', label: 'HH: under-predicted cluster' },
+      { color: '#4575b4', label: 'LL: over-predicted cluster' },
+      { color: '#fc8d59', label: 'HL: outlier' },
+      { color: '#91bfdb', label: 'LH: outlier' },
+      { color: '#2a2a2a', label: 'Not significant (p ≥ 0.05)' },
     ],
   };
 
@@ -131,21 +131,39 @@ export default function ModelDashboard() {
           </h1>
         </div>
 
-        {/* Layer Switcher */}
-        <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl">
-          {(['prediction', 'residual', 'hotspot'] as MapLayer[]).map(layer => (
-            <button
-              key={layer}
-              onClick={() => setMapLayer(layer)}
-              className={`px-3 py-1.5 text-[11px] rounded-lg transition-all capitalize tracking-wide ${
-                mapLayer === layer
-                  ? 'bg-white/15 text-white font-medium'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {layer === 'prediction' ? 'Prediction' : layer === 'residual' ? 'Residuals' : 'Hotspots'}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          {/* Layer Switcher */}
+          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl">
+            {(['prediction', 'residual', 'hotspot'] as MapLayer[]).map(layer => (
+              <button
+                key={layer}
+                onClick={() => setMapLayer(layer)}
+                className={`px-3 py-1.5 text-[11px] rounded-lg transition-all capitalize tracking-wide ${
+                  mapLayer === layer
+                    ? 'bg-white/15 text-white font-medium'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {layer === 'prediction' ? 'Prediction' : layer === 'residual' ? 'Residuals' : 'Hotspots'}
+              </button>
+            ))}
+          </div>
+
+          {/* Map label language (affects the map only) */}
+          <div role="group" aria-label="Map label language" className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl">
+            {([['jp', '日本語'], ['en', 'English']] as [LabelLang, string][]).map(([lang, text]) => (
+              <button
+                key={lang}
+                onClick={() => setLabelLang(lang)}
+                aria-pressed={labelLang === lang}
+                className={`px-3 py-1.5 text-[11px] rounded-lg transition-all tracking-wide ${
+                  labelLang === lang ? 'bg-white/15 text-white font-medium' : 'text-gray-500 hover:text-gray-300'
+                }`}
+              >
+                {text}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Status badge */}
@@ -173,7 +191,9 @@ export default function ModelDashboard() {
             selectedPrefecture={selectedPrefecture}
             setSelectedPrefecture={setSelectedPrefecture}
             mapLayer={mapLayer}
-            simulationModifiers={simulationModifiers}
+            shifts={shifts}
+            features={featureImpacts}
+            labelLang={labelLang}
           />
         </div>
 
@@ -184,9 +204,10 @@ export default function ModelDashboard() {
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-5 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
             <SimulationControls
-              modifiers={simulationModifiers}
-              setModifiers={setSimulationModifiers}
+              shifts={shifts}
+              setShifts={setShifts}
               spatialData={spatialData}
+              features={featureImpacts}
             />
           </div>
         </div>
@@ -241,7 +262,8 @@ export default function ModelDashboard() {
             <div className="flex-1 overflow-hidden p-3">
               <LeaderboardTable
                 spatialData={spatialData}
-                simulationModifiers={simulationModifiers}
+                shifts={shifts}
+                features={featureImpacts}
                 selectedPrefecture={selectedPrefecture}
                 setSelectedPrefecture={setSelectedPrefecture}
               />
